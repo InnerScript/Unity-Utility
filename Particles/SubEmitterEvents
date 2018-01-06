@@ -1,0 +1,131 @@
+/*
+MIT License
+
+Copyright (c) 2018 Inner Script
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+https://github.com/InnerScript/Unity-Utility/Particles 
+
+*/
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
+
+namespace InnerScript.Particles
+{
+    [RequireComponent(typeof(ParticleSystem))]
+    public class SubEmitterEvents : MonoBehaviour
+    {
+        public List<UnityEvent> OnBirth;
+        public List<UnityEvent> OnDeath;
+
+        private ParticleSystem thisParticleSystem;
+
+        public bool SkipFirstCheck = true;
+        private bool firstCheck = false;
+
+        //Management flags
+        bool startAliveState = false;
+        bool startEmittingState = false;
+
+        bool previousAliveState = false;
+        bool previousEmittingState = false;
+
+        bool hasBroadcastBirth = false;
+        bool hasBroadcastDeath = false;
+
+        bool pauseChecks = false;
+
+        void Start()
+        {
+            thisParticleSystem = GetComponent<ParticleSystem>();
+
+            startAliveState = thisParticleSystem.IsAlive(false);
+            startEmittingState = thisParticleSystem.isEmitting;
+        }
+
+        void Update()
+        {
+            //Debug.Log("Playing: " + particleSystem.isPlaying + " -  Stopped: " + particleSystem.isStopped + " - Emitting: " + particleSystem.isEmitting + " - Alive: " + particleSystem.IsAlive(false));
+
+            //When the sub emitter ParticleSystem is first added to a scene with Instantiate, it starts off as Alive the first frame, and then reverts back.
+            //Skipping the first check hacks around this.
+            if (!firstCheck && SkipFirstCheck)
+            {
+                firstCheck = true;
+                return;
+            }
+
+            //The state if both the birth and death have fired.
+            //TODO: Reset this when the system starts again
+            if (pauseChecks)
+                return;
+            
+            //The straightforward logic that fires the events
+            bool currentAliveState = thisParticleSystem.IsAlive(false);
+
+            if (previousAliveState != currentAliveState)
+            {
+                if (!hasBroadcastBirth && currentAliveState)
+                {
+                    InvokeBirth();
+                }
+                else if (!hasBroadcastDeath && previousAliveState == true && (!currentAliveState && !thisParticleSystem.isEmitting))
+                {
+                    InvokeDeath();
+                }
+            }
+
+            previousAliveState = currentAliveState;
+        }
+
+        private void InvokeBirth()
+        {
+            foreach (UnityEvent e in OnBirth)
+            {
+                e.Invoke();
+            }
+
+            hasBroadcastBirth = true;
+
+            //Debug.Log("Born!");
+        }
+
+        private void InvokeDeath()
+        {
+            foreach (UnityEvent e in OnDeath)
+            {
+                e.Invoke();
+            }
+
+            hasBroadcastDeath = true;
+
+            //Debug.Log("Died!");
+        }
+
+        private void SetPauseChecks()
+        {
+            if (hasBroadcastBirth && hasBroadcastDeath)
+                pauseChecks = true;
+        }
+    }
+}
